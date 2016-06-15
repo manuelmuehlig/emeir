@@ -8,6 +8,7 @@
 # counter and consumption values into a round robin database.
 
 # Copyright 2015 Martin Kompf
+# Copyright 2015 Manuel Mühlig for changes related to multiple sensors and mqtt
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,6 +30,9 @@ import os
 import re
 import argparse
 import rrdtool
+
+# number of sensors
+num_sensors = 2
 
 # Serial port of arduino
 port = '/dev/ttyUSB0'
