@@ -16,7 +16,7 @@ There is a blog in german language that explains use case and function: [Infraro
 
 * __D__ - retrieve and print raw data
 * __T__ - enter trigger mode and print trigger data (0/1)
-* __S__ _low_ _high_ - Set trigger levels (e.g. 85 90)
+* __S__ _sensor_ _low_ _high_ - Set trigger levels (e.g. 0 85 90)
 * __C__ - Cancel data acquisition and enter command mode
 
 Arduino is in trigger mode upon start - Send __C__ to enter command mode
