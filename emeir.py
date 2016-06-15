@@ -8,7 +8,7 @@
 # counter and consumption values into a round robin database.
 
 # Copyright 2015 Martin Kompf
-# Copyright 2015 Manuel Mühlig for changes related to multiple sensors and mqtt
+# Copyright 2015 Manuel Muehlig for changes related to multiple sensors and mqtt
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -41,12 +41,13 @@ port = '/dev/ttyUSB0'
 rev_per_kWh = 75
 
 # Path to RRD with counter values
-count_rrd = "%s/emeir.rrd" % (os.path.dirname(os.path.abspath(__file__)))
+count_rrd_template = "%s/emeir_" % (os.path.dirname(os.path.abspath(__file__)))
 
 
 
 # Create the Round Robin Database
-def create_rrd():
+def create_rrd(sensor, initial_value = 0):
+  count_rrd = count_rrd_template + str(sensor) + ".rrd"
   print 'Creating RRD: ' + count_rrd
   # Create RRD to store counter and consumption:
   # 1 trigger cycle matches consumption of 1/revs_per_kWh
@@ -71,11 +72,15 @@ def create_rrd():
       'RRA:AVERAGE:0.5:10080:520')
   except Exception as e:
     print 'Error ' + str(e)
+  
+  if initial_value != 0:
+    update = "N:%.2f:%.0f" % (initial_value, 0)
+    rrdtool.update(count_rrd, update)
 
 # Get the last counter value from the rrd database
-def last_rrd_count():
+def last_rrd_count(sensor):
   val = 0.0
-  handle = os.popen("rrdtool lastupdate " + count_rrd)
+  handle = os.popen("rrdtool lastupdate " + count_rrd_template + str(sensor) + ".rrd")
   for line in handle:
     m = re.match(r"^[0-9]*: ([0-9.]*) [0-9.]*", line)
     if m:
@@ -89,10 +94,15 @@ def main():
   # Check command args
   parser = argparse.ArgumentParser(description='Program to read the electrical meter using a reflective light sensor.')
   parser.add_argument('-c', '--create', action='store_true', default=False, help='Create rrd database if necessary')
+  parser.add_argument('-i','--initial', nargs=num_sensors, help='Provides a list with initial values when creating rrd', required=False)
   args = parser.parse_args()
 
   if args.create:
-    create_rrd()
+    for i in range(0,num_sensors):
+        if args.initial:
+          create_rrd(i, float(args.initial[i]))
+        else:
+          create_rrd(i)
 
   # Open serial line
   ser = serial.Serial(port, 9600)
@@ -100,26 +110,34 @@ def main():
     print "Unable to open serial port %s" % port
     sys.exit(1)
 
-  trigger_state = 0
-  counter = last_rrd_count()
-  print "restoring counter to %f" % counter
+  trigger_state = []
+  counter = []
+  for i in range(0, num_sensors):
+    trigger_state.append(0)
+    counter.append(last_rrd_count(i))
+    print "restoring counter for sensor %d to %f" % (i, counter[i])
 
   trigger_step = 1.0 / rev_per_kWh
-  while(1==1):
+  while(True):
     # Read line from arduino and convert to trigger value
     line = ser.readline()
     line = line.strip()
+    elements = line.split()
+    if len(elements) != 2:
+        continue
 
-    old_state = trigger_state
-    if line == '1':
-      trigger_state = 1
-    elif line == '0':
-      trigger_state = 0
-    if old_state == 1 and trigger_state == 0:
+    sensor = int(elements[0])
+    old_state = trigger_state[sensor]
+    if elements[1] == '1':
+      trigger_state[sensor] = 1
+    elif elements[1] == '0':
+      trigger_state[sensor] = 0
+    if old_state == 1 and trigger_state[sensor] == 0:
       # trigger active -> update count rrd
-      counter += trigger_step
-      update = "N:%.2f:%.0f" % (counter, trigger_step*3600000.0)
+      counter[sensor] += trigger_step
+      update = "N:%.2f:%.0f" % (counter[sensor], trigger_step*3600000.0)
       #print update
+      count_rrd = count_rrd_template + str(sensor) + ".rrd"
       rrdtool.update(count_rrd, update)
 
 
